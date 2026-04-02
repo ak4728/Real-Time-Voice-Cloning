@@ -5,6 +5,7 @@ Usage: python clone_voice.py <audio_file> <"text to synthesize"> [output.wav] [-
 """
 import os
 import sys
+import warnings
 from pathlib import Path
 
 # Ensure system PATH is loaded so ffmpeg (needed for MP3/M4A) is found
@@ -14,6 +15,9 @@ os.environ["PATH"] = (
 )
 import numpy as np
 import soundfile as sf
+
+# Suppress expected MP3 fallback warning (soundfile doesn't support MP3; audioread/ffmpeg is used instead)
+warnings.filterwarnings("ignore", message="PySoundFile failed", category=UserWarning)
 
 from encoder import inference as encoder
 from synthesizer.inference import Synthesizer
