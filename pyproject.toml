@@ -27,8 +27,8 @@ dependencies = [
 
 [project.optional-dependencies]
 # CPU-only torch (default in CI)
-cpu   = ["torch==1.10.*"]
-cuda = ["torch==1.10.*"]
+cpu   = ["torch>=2.6.0"]
+cuda = ["torch>=2.6.0"]
 
 [dependency-groups]
 # Dev/test dependencies
@@ -43,7 +43,7 @@ torch = [
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu113"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [[tool.uv.index]]

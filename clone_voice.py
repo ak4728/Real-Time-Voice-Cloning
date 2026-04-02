@@ -1,9 +1,17 @@
 """
 Non-interactive voice cloning script.
-Usage: python clone_voice.py <audio_file> <"text to synthesize"> [output.wav]
+Usage: python clone_voice.py <audio_file> <"text to synthesize"> [output.wav] [--fast]
+  --fast   Use batched vocoder (faster but lower quality). Default is high-quality unbatched.
 """
+import os
 import sys
 from pathlib import Path
+
+# Ensure system PATH is loaded so ffmpeg (needed for MP3/M4A) is found
+os.environ["PATH"] = (
+    os.environ.get("PATH", "") + os.pathsep +
+    os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Links")
+)
 import numpy as np
 import soundfile as sf
 
@@ -12,7 +20,7 @@ from synthesizer.inference import Synthesizer
 from vocoder import inference as vocoder
 from utils.default_models import ensure_default_models
 
-def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav"):
+def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav", fast: bool = False):
     ensure_default_models(Path("saved_models"))
 
     print("Loading models...")
@@ -29,7 +37,13 @@ def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav"):
     mel = synthesizer.synthesize_spectrograms([text], [embed])[0]
 
     print("Generating waveform...")
-    wav_out = vocoder.infer_waveform(mel)
+    if fast:
+        # Batched — faster, slightly lower quality
+        wav_out = vocoder.infer_waveform(mel, target=8000, overlap=800)
+    else:
+        # Unbatched — slower but noticeably clearer enunciation
+        wav_out = vocoder.infer_waveform(mel, batched=False)
+
     wav_out = np.pad(wav_out, (0, synthesizer.sample_rate), mode="constant")
 
     sf.write(out_path, wav_out.astype(np.float32), synthesizer.sample_rate)
@@ -37,7 +51,9 @@ def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav"):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python clone_voice.py <audio_file> <text> [output.wav]")
+        print("Usage: python clone_voice.py <audio_file> <text> [output.wav] [--fast]")
         sys.exit(1)
-    out = sys.argv[3] if len(sys.argv) > 3 else "cloned_output.wav"
-    clone(sys.argv[1], sys.argv[2], out)
+    fast_mode = "--fast" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--fast"]
+    out = args[2] if len(args) > 2 else "cloned_output.wav"
+    clone(args[0], args[1], out, fast=fast_mode)
