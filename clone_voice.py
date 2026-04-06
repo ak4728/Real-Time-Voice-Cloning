@@ -24,6 +24,15 @@ from synthesizer.inference import Synthesizer
 from vocoder import inference as vocoder
 from utils.default_models import ensure_default_models
 
+def split_sentences(text: str):
+    """Split text into sentences so Tacotron doesn't lose alignment on long inputs."""
+    import re
+    # Split on sentence-ending punctuation, keeping the delimiter
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    # Drop empty strings
+    return [p.strip() for p in parts if p.strip()]
+
+
 def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav", fast: bool = False):
     ensure_default_models(Path("saved_models"))
 
@@ -37,17 +46,24 @@ def clone(audio_path: str, text: str, out_path: str = "cloned_output.wav", fast:
     embed = encoder.embed_utterance(wav)
     print("Speaker embedding computed.")
 
-    print(f"Synthesizing: {text!r}")
-    mel = synthesizer.synthesize_spectrograms([text], [embed])[0]
+    sentences = split_sentences(text)
+    print(f"Synthesizing {len(sentences)} sentence(s)...")
 
-    print("Generating waveform...")
-    if fast:
-        # Batched — faster, slightly lower quality
-        wav_out = vocoder.infer_waveform(mel, target=8000, overlap=800)
-    else:
-        # Unbatched — slower but noticeably clearer enunciation
-        wav_out = vocoder.infer_waveform(mel, batched=False)
+    silence = np.zeros(int(synthesizer.sample_rate * 0.15))  # 150ms gap between sentences
+    wav_segments = []
 
+    for i, sentence in enumerate(sentences, 1):
+        print(f"  [{i}/{len(sentences)}] {sentence!r}")
+        mel = synthesizer.synthesize_spectrograms([sentence], [embed])[0]
+        if fast:
+            seg = vocoder.infer_waveform(mel, target=8000, overlap=800)
+        else:
+            seg = vocoder.infer_waveform(mel, batched=False)
+        wav_segments.append(seg)
+        if i < len(sentences):
+            wav_segments.append(silence)
+
+    wav_out = np.concatenate(wav_segments)
     wav_out = np.pad(wav_out, (0, synthesizer.sample_rate), mode="constant")
 
     sf.write(out_path, wav_out.astype(np.float32), synthesizer.sample_rate)
