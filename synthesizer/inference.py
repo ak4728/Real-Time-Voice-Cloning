@@ -118,8 +118,10 @@ class Synthesizer:
             _, mels, alignments = self._model.generate(chars, speaker_embeddings)
             mels = mels.detach().cpu().numpy()
             for m in mels:
-                # Trim silence from end of each spectrogram
-                while np.max(m[:, -1]) < hparams.tts_stop_threshold:
+                # Trim silence from end of each spectrogram, but keep a minimum tail
+                # to avoid cutting off the last syllable (keep at least 10 frames ~0.1s)
+                min_len = m.shape[1] - 10
+                while m.shape[1] > max(1, min_len) and np.max(m[:, -1]) < hparams.tts_stop_threshold:
                     m = m[:, :-1]
                 specs.append(m)
 
